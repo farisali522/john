@@ -158,6 +158,62 @@ class DapilAdmin(ImportExportModelAdmin):
         kursi_partai.__name__ = f'info_kursi_partai_{partai.pk}'
         return kursi_partai
 
+    def make_readonly_kursi_partai_method(self, partai):
+        def kursi_partai_readonly(self, obj):
+            if not obj or not obj.pk:
+                kursi = 0
+            else:
+                kursi_dict = self.get_kursi_partai_dict(obj)
+                kursi = kursi_dict.get(partai.id, 0)
+            
+            logo_html = format_html(
+                '<span class="img-thumbnail d-inline-flex align-items-center '
+                'justify-content-center mr-3" style="width:42px;height:42px;'
+                'color:#6c757d;">{}</span>',
+                partai.no_urut
+            )
+
+            if partai.logo_url:
+                logo_html = format_html(
+                    '<img src="{}" alt="{}" class="img-thumbnail mr-3" '
+                    'style="width:42px;height:42px;object-fit:contain;">',
+                    partai.logo_url,
+                    partai.nama
+                )
+
+            return format_html(
+                '<div class="d-flex align-items-center" style="max-width:590px;">{}'
+                '<div class="mr-3" style="min-width:210px;">'
+                '<strong>{}</strong></div>'
+                '<div style="width:180px; font-weight:bold; font-size:16px;">{}</div></div>',
+                logo_html,
+                partai.nama,
+                f"{kursi} Kursi" if kursi > 0 else "-"
+            )
+        
+        kursi_partai_readonly.short_description = f'Partai #{partai.no_urut}'
+        kursi_partai_readonly.__name__ = f'readonly_kursi_partai_{partai.pk}'
+        return kursi_partai_readonly
+
+    def get_fields(self, request, obj=None):
+        fields = ['nama', 'jumlah_kursi', 'kokab']
+        for partai in Partai.objects.order_by('no_urut'):
+            method_name = f'readonly_kursi_partai_{partai.pk}'
+            if not hasattr(self.__class__, method_name):
+                setattr(self.__class__, method_name, self.make_readonly_kursi_partai_method(partai))
+            fields.append(method_name)
+        return fields
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = super().get_readonly_fields(request, obj)
+        if isinstance(readonly, tuple):
+            readonly = list(readonly)
+        for partai in Partai.objects.all():
+            method_name = f'readonly_kursi_partai_{partai.pk}'
+            if method_name not in readonly:
+                readonly.append(method_name)
+        return tuple(readonly)
+
 
 class PartaiSuaraInput(forms.NumberInput):
     def __init__(self, partai, attrs=None):
@@ -184,11 +240,9 @@ class PartaiSuaraInput(forms.NumberInput):
         return format_html(
             '<div class="d-flex align-items-center" style="max-width:590px;">{}'
             '<div class="mr-3" style="min-width:210px;">'
-            '<strong>PARTAI #{}</strong><br>'
-            '<span>{}</span></div>'
+            '<strong>{}</strong></div>'
             '<div style="width:180px;">{}</div></div>',
             logo_html,
-            self.partai.no_urut,
             self.partai.nama,
             input_html
         )
@@ -226,7 +280,7 @@ class RekapSuaraAdminForm(forms.ModelForm):
             min_value=0,
             required=False,
             initial=initial,
-            label=f'Suara Partai #{partai.no_urut}',
+            label=f'Partai #{partai.no_urut}',
             widget=PartaiSuaraInput(
                 partai,
                 attrs={
@@ -277,7 +331,49 @@ class RekapSuaraAdmin(ImportExportModelAdmin):
             for partai in Partai.objects.order_by('no_urut')
         ]
 
+    def make_readonly_suara_partai_method(self, partai):
+        def suara_partai_readonly(self, obj):
+            if not obj or not obj.pk:
+                suara = 0
+            else:
+                detail = obj.detail_suara.filter(partai=partai).first()
+                suara = detail.jumlah_suara if detail else 0
+            
+            logo_html = format_html(
+                '<span class="img-thumbnail d-inline-flex align-items-center '
+                'justify-content-center mr-3" style="width:42px;height:42px;'
+                'color:#6c757d;">{}</span>',
+                partai.no_urut
+            )
+
+            if partai.logo_url:
+                logo_html = format_html(
+                    '<img src="{}" alt="{}" class="img-thumbnail mr-3" '
+                    'style="width:42px;height:42px;object-fit:contain;">',
+                    partai.logo_url,
+                    partai.nama
+                )
+
+            return format_html(
+                '<div class="d-flex align-items-center" style="max-width:590px;">{}'
+                '<div class="mr-3" style="min-width:210px;">'
+                '<strong>{}</strong></div>'
+                '<div style="width:180px; font-weight:bold; font-size:16px;">{}</div></div>',
+                logo_html,
+                partai.nama,
+                format_angka(suara)
+            )
+        
+        suara_partai_readonly.short_description = f'Partai #{partai.no_urut}'
+        suara_partai_readonly.__name__ = RekapSuaraAdminForm.get_partai_field_name(partai)
+        return suara_partai_readonly
+
     def get_fields(self, request, obj=None):
+        for partai in Partai.objects.all():
+            method_name = RekapSuaraAdminForm.get_partai_field_name(partai)
+            if not hasattr(self.__class__, method_name):
+                setattr(self.__class__, method_name, self.make_readonly_suara_partai_method(partai))
+
         return [
             'kecamatan',
             'suara_tidak_sah',
