@@ -26,3 +26,16 @@ class Kecamatan(models.Model):
 
     def __str__(self):
         return f"{self.kokab} | {self.kode} | {self.nama}"
+
+class Partai(models.Model):
+    nama = models.CharField(max_length=100, unique=True)
+    no_urut = models.IntegerField(unique=True)
+    warna = models.CharField(max_length=50, default='#808080', help_text='Kode Hex (contoh: #808080)')
+    logo_url = models.URLField(max_length=200, blank=True, null=True)
+    is_lolos_pt = models.BooleanField(default=False, verbose_name="Lolos PT 4%", help_text="Centang jika partai ini lolos Ambang Batas Parlemen (Khusus DPR RI)")
+
+    def __str__(self):
+        return f"{self.nama}"
+
+    class Meta:
+        verbose_name_plural = "Partai"

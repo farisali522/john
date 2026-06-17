@@ -40,6 +40,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'master',
+    'pileg_ri',
+    'pileg_prov',
+    'pileg_kokab',
 ]
 
 MIDDLEWARE = [
@@ -140,6 +143,17 @@ JAZZMIN_SETTINGS = {
         "master": "fas fa-layer-group",
         "master.kokab": "fas fa-city",
         "master.kecamatan": "fas fa-map-marked-alt",
+        "master.partai": "fas fa-flag",
+        "pileg_ri": "fas fa-chart-pie",
+        "pileg_ri.dapil": "fas fa-map",
+        "pileg_ri.rekapsuara": "fas fa-table",
+        "pileg_prov": "fas fa-chart-pie",
+        "pileg_prov.dapil": "fas fa-map",
+        "pileg_prov.rekapsuara": "fas fa-table",
+        "pileg_kokab": "fas fa-chart-pie",
+        "pileg_kokab.rekapkursikokab": "fas fa-city",
+        "pileg_kokab.dapil": "fas fa-map",
+        "pileg_kokab.rekapsuara": "fas fa-table"
     },
-    "order_with_respect_to": ["master.kokab", "master.kecamatan", "auth.user", "auth.Group"],
+    "order_with_respect_to": ["auth", "master", "pileg_ri", "pileg_prov", "pileg_kokab"],
 }

@@ -1,6 +1,6 @@
 from import_export import fields, resources
 from import_export.widgets import ForeignKeyWidget
-from .models import Kokab, Kecamatan
+from .models import Kokab, Kecamatan, Partai
 
 class KokabResource(resources.ModelResource):
     class Meta:
@@ -21,3 +21,10 @@ class KecamatanResource(resources.ModelResource):
         fields = ('kode', 'nama', 'kokab', 'jumlah_penduduk', 'dpt_pemilu', 'dpt_pilkada')
         exclude = ('id',)
         import_id_fields = ('kode',)
+
+class PartaiResource(resources.ModelResource):
+    class Meta:
+        model = Partai
+        fields = ('no_urut', 'nama', 'warna', 'logo_url')
+        exclude = ('id',)
+        import_id_fields = ('no_urut',)
