@@ -154,21 +154,11 @@ JAZZMIN_SETTINGS = {
         "pileg_kokab": "fas fa-chart-pie",
         "pileg_kokab.rekapkursikokab": "fas fa-city",
         "pileg_kokab.dapil": "fas fa-map",
-        "pileg_kokab.rekapsuara": "fas fa-table"
+        "pileg_kokab.rekapsuara": "fas fa-table",
+        "rebut_kursi.aksessimulasi": "fas fa-bullseye"
     },
     "topmenu_links": [
         {"name": "Rebut Kursi", "url": "rebut_kursi:dashboard", "icon": "fas fa-crosshairs", "new_window": False, "permissions": ["rebut_kursi.can_access_simulasi"]}
     ],
-    "custom_links": {
-        "master": [{
-            "name": "Simulasi Rebut Kursi", 
-            "url": "rebut_kursi:dashboard", 
-            "icon": "fas fa-crosshairs",
-            "permissions": ["rebut_kursi.can_access_simulasi"]
-        }]
-    },
-    "usermenu_links": [
-        {"name": "Simulasi Rebut Kursi", "url": "rebut_kursi:dashboard", "icon": "fas fa-crosshairs", "permissions": ["rebut_kursi.can_access_simulasi"]}
-    ],
-    "order_with_respect_to": ["auth", "master", "pileg_ri", "pileg_prov", "pileg_kokab"],
+    "order_with_respect_to": ["auth", "master", "pileg_ri", "pileg_prov", "pileg_kokab", "rebut_kursi"],
 }
