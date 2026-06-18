@@ -159,5 +159,13 @@ JAZZMIN_SETTINGS = {
     "topmenu_links": [
         {"name": "Rebut Kursi", "url": "rebut_kursi:dashboard", "icon": "fas fa-crosshairs", "new_window": False, "permissions": ["rebut_kursi.can_access_simulasi"]}
     ],
+    "custom_links": {
+        "master": [{
+            "name": "Simulasi Rebut Kursi", 
+            "url": "rebut_kursi:dashboard", 
+            "icon": "fas fa-crosshairs",
+            "permissions": ["rebut_kursi.can_access_simulasi"]
+        }]
+    },
     "order_with_respect_to": ["auth", "master", "pileg_ri", "pileg_prov", "pileg_kokab"],
 }
