@@ -7,3 +7,4 @@ class MasterConfig(AppConfig):
     def ready(self):
         from django.apps import apps
         apps.get_app_config('auth').verbose_name = 'Auth'
+        import master.signals

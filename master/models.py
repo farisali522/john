@@ -39,3 +39,19 @@ class Partai(models.Model):
 
     class Meta:
         verbose_name_plural = "Partai"
+
+from django.contrib.auth.models import User
+
+class RiwayatLogin(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Pengguna")
+    ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name="IP Address")
+    user_agent = models.CharField(max_length=255, null=True, blank=True, verbose_name="Browser/Perangkat")
+    waktu_login = models.DateTimeField(auto_now_add=True, verbose_name="Waktu Login")
+
+    class Meta:
+        verbose_name = 'Riwayat Login'
+        verbose_name_plural = 'Riwayat Login'
+        ordering = ['-waktu_login']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.waktu_login.strftime('%Y-%m-%d %H:%M:%S')}"

@@ -128,3 +128,35 @@ class PartaiAdmin(ImportExportModelAdmin):
     def has_export_permission(self, request):
         return True
 
+from .models import RiwayatLogin
+
+@admin.register(RiwayatLogin)
+class RiwayatLoginAdmin(admin.ModelAdmin):
+    list_display = ('user', 'ip_address', 'waktu_login', 'user_agent_short')
+    list_filter = ('user', 'waktu_login')
+    search_fields = ('user__username', 'ip_address', 'user_agent')
+    readonly_fields = ('user', 'ip_address', 'user_agent', 'waktu_login')
+    list_per_page = 50
+
+    @admin.display(description='Browser/Perangkat')
+    def user_agent_short(self, obj):
+        if obj.user_agent and len(obj.user_agent) > 50:
+            return obj.user_agent[:47] + "..."
+        return obj.user_agent
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+        
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_module_permission(self, request):
+        # Hanya muncul di sidebar jika Superuser
+        return request.user.is_superuser
+
+    def has_view_permission(self, request, obj=None):
+        # Hanya bisa dilihat jika Superuser
+        return request.user.is_superuser
