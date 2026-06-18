@@ -1,0 +1,548 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2>Simulasi Rebut Kursi</h2>
+
+    <div class="row">
+        <div class="col-md-4" id="col-tingkat">
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-body p-3">
+                    <h6 class="text-muted mb-2">Jenis Pemilihan</h6>
+                    <select id="select-tingkat" class="form-control form-control-lg">
+                        <option value="ri">Pileg DPR RI</option>
+                        <option value="prov">Pileg Provinsi</option>
+                        <option value="kokab">Pileg Kabupaten/Kota</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4" id="col-partai">
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-body p-3">
+                    <h6 class="text-muted mb-2">Partai Target</h6>
+                    <select id="select-partai" class="form-control form-control-lg">
+                        <option value="">-- Pilih Partai --</option>
+                        {% for partai in partai_list %}
+                        <option value="{{ partai.id }}" data-logo="{{ partai.logo_url|default:'' }}">{{ partai.no_urut }} - {{ partai.nama }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4" id="col-kokab">
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-body p-3">
+                    <h6 class="text-muted mb-2">Area Kota/Kab</h6>
+                    <select id="select-kokab" class="form-control form-control-lg">
+                        <option value="">-- Pilih Area --</option>
+                        {% for kokab in kokab_list %}
+                        <option value="{{ kokab.id }}">{{ kokab.nama }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <button class="btn btn-primary" id="btn-proses">Mulai Kalkulasi</button>
+        </div>
+    </div>
+
+    <div id="hasil-container" style="display: none;">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Hasil Analisis per Dapil</h3>
+            </div>
+            <div class="card-body table-responsive p-0">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Nama Dapil</th>
+                            <th>Al. Kursi</th>
+                            <th>Kursi</th>
+                            <th>Suara Partai (Persentase)</th>
+                            <th>Harga Kursi & Sisa Suara</th>
+                            <th>Target +1 Kursi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabel-dapil-body"></tbody>
+                    <tfoot id="tabel-dapil-foot" class="font-weight-bold bg-light"></tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('select-tingkat').addEventListener('change', function() {
+        let val = this.value;
+        let colKokab = document.getElementById('col-kokab');
+        let colTingkat = document.getElementById('col-tingkat');
+        let colPartai = document.getElementById('col-partai');
+
+        if (val === 'prov' || val === 'ri') {
+            colKokab.style.display = 'none';
+            colTingkat.className = 'col-md-6';
+            colPartai.className = 'col-md-6';
+        } else {
+            colKokab.style.display = 'block';
+            colTingkat.className = 'col-md-4';
+            colPartai.className = 'col-md-4';
+            colKokab.className = 'col-md-4';
+        }
+    });
+
+    (function () {
+        var checkJq = setInterval(function () {
+            if (window.jQuery) {
+                clearInterval(checkJq);
+                loadSelect2(window.jQuery);
+            } else if (window.django && window.django.jQuery) {
+                clearInterval(checkJq);
+                window.jQuery = window.django.jQuery; 
+                window.$ = window.jQuery;
+                loadSelect2(window.jQuery);
+            }
+        }, 100);
+
+        function loadSelect2($jq) {
+            if (!document.getElementById('select2-css')) {
+                var css = document.createElement('link');
+                css.id = 'select2-css';
+                css.rel = 'stylesheet';
+                css.href = 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css';
+                document.head.appendChild(css);
+            }
+
+            if (!$jq.fn.select2) {
+                var js = document.createElement('script');
+                js.src = 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js';
+                js.onload = function () { initDropdowns($jq); };
+                document.body.appendChild(js);
+            } else {
+                initDropdowns($jq);
+            }
+        }
+
+        function initDropdowns($jq) {
+            function formatPartai(state) {
+                if (!state.id) return state.text;
+                var logoUrl = state.element.getAttribute('data-logo');
+                if (!logoUrl || logoUrl.trim() === "") return state.text;
+
+                return $jq(
+                    '<span><img src="' + logoUrl + '" style="height:20px; width:20px; object-fit:contain; margin-right:8px; vertical-align:middle; background:#fff; border-radius:2px;" onerror="this.style.display=\'none\'" /> ' + state.text + '</span>'
+                );
+            }
+
+            $jq('#select-partai').select2({
+                templateResult: formatPartai,
+                templateSelection: formatPartai,
+                width: '100%'
+            });
+
+            $jq('#select-kokab').select2({ width: '100%' });
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlPartai = urlParams.get('partai') || localStorage.getItem('rk_partai');
+            const urlKokab = urlParams.get('kokab') || localStorage.getItem('rk_kokab');
+            const urlTingkat = urlParams.get('tingkat') || localStorage.getItem('rk_tingkat') || 'ri';
+
+            document.getElementById('select-tingkat').value = urlTingkat;
+            document.getElementById('select-tingkat').dispatchEvent(new Event('change'));
+
+            let shouldAutoClick = false;
+
+            if (urlPartai && urlPartai !== "") {
+                $jq('#select-partai').val(urlPartai).trigger('change');
+                shouldAutoClick = true;
+            }
+
+            if (urlKokab && urlKokab !== "") {
+                $jq('#select-kokab').val(urlKokab).trigger('change');
+            } else if (urlTingkat === 'kokab') {
+                shouldAutoClick = false;
+            }
+
+            if (shouldAutoClick) {
+                setTimeout(function () {
+                    const btn = document.getElementById('btn-proses');
+                    if (btn) btn.click();
+                }, 300);
+            }
+        }
+    })();
+
+    document.getElementById('btn-proses').addEventListener('click', function () {
+        const tingkat = document.getElementById('select-tingkat').value;
+        const partaiId = document.getElementById('select-partai').value;
+        const kokabId = document.getElementById('select-kokab').value;
+
+        // Simpan preferensi pengguna ke LocalStorage
+        localStorage.setItem('rk_tingkat', tingkat);
+        localStorage.setItem('rk_partai', partaiId);
+        localStorage.setItem('rk_kokab', kokabId);
+
+        if (!partaiId) {
+            alert('Pilih Partai!');
+            return;
+        }
+        
+        if (tingkat === 'kokab' && !kokabId) {
+            alert('Pilih Area!');
+            return;
+        }
+
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?partai=' + partaiId + '&kokab=' + kokabId;
+        window.history.replaceState({ path: newUrl }, '', newUrl);
+
+        const btn = document.getElementById('btn-proses');
+        btn.innerHTML = 'Menghitung...';
+        btn.disabled = true;
+
+        fetch(`/rebut-kursi/api/simulate/?tingkat=${tingkat}&partai_id=${partaiId}&kokab_id=${kokabId}`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('hasil-container').style.display = 'block';
+
+                const tbody = document.getElementById('tabel-dapil-body');
+                const tfoot = document.getElementById('tabel-dapil-foot');
+
+                let rows = '';
+
+                let totalKursiDapil = 0;
+                let totalKursiDidapat = 0;
+                let totalSuaraPartai = 0;
+                let totalSuaraDapilSemua = 0;
+                let totalSuaraMubazir = 0;
+                let totalKekurangan = 0;
+                let totalTambahanKursi = 0;
+                let totalDPT = 0;
+
+                data.dapil_list.forEach((d, index) => {
+                    totalKursiDapil += d.jumlah_kursi;
+                    totalKursiDidapat += d.kursi_didapat;
+                    totalSuaraPartai += d.suara_total_partai;
+                    totalSuaraDapilSemua += d.total_suara_dapil;
+                    totalSuaraMubazir += d.suara_mubazir;
+                    totalDPT += d.total_dpt_dapil;
+
+                    let labelPlus = '';
+                    let labelKekurangan = '-';
+
+                    if (d.kursi_didapat < d.jumlah_kursi) {
+                        labelPlus = ' <span class="text-success font-weight-bold">(+1)</span>';
+                        let persentaseKekurangan = d.total_dpt_dapil > 0 ? ((d.tambahan_suara_dibutuhkan / d.total_dpt_dapil) * 100).toFixed(1) : 0;
+                        
+                        let colorClass = "text-warning";
+                        if (persentaseKekurangan <= 3.0) {
+                            colorClass = "text-success"; // Mungkin (Hijau)
+                        } else if (persentaseKekurangan <= 7.0) {
+                            colorClass = "text-warning"; // Sedang (Kuning)
+                        } else {
+                            colorClass = "text-danger"; // Berat (Merah)
+                        }
+                        
+                        labelKekurangan = `<strong class="${colorClass} font-weight-bold" style="font-size:1.1rem;">+${d.tambahan_suara_dibutuhkan.toLocaleString('id-ID')}</strong><br><small class="text-muted">(${persentaseKekurangan}% DPT)</small>`;
+                        totalKekurangan += d.tambahan_suara_dibutuhkan;
+                        totalTambahanKursi += 1;
+                    } else {
+                        labelKekurangan = '<span class="text-muted font-weight-bold" style="font-size:1.1rem;">Maksimal</span>';
+                    }
+
+                    let persentase = d.total_suara_dapil > 0 ? ((d.suara_total_partai / d.total_suara_dapil) * 100).toFixed(1) : 0;
+                    let keteranganSisa = d.kursi_didapat > 0 ? `(dr kursi ke-${d.kursi_didapat})` : `(blm dpt kursi)`;
+
+                    // Html Rincian Kecamatan (Opsi 1: Operasi Frontal)
+                    let targetKecamatanHtml = '';
+                    if (d.operasi_rebut && d.operasi_rebut.target_kecamatan && d.operasi_rebut.target_kecamatan.length > 0) {
+                        d.operasi_rebut.target_kecamatan.forEach((kec, idx) => {
+                            targetKecamatanHtml += `
+                                <tr>
+                                    <td class="align-middle">${idx + 1}</td>
+                                    <td class="align-middle">
+                                        <strong>${kec.nama_kecamatan}</strong><br>
+                                        <span class="badge badge-${kec.warna_zona}">${kec.label_zona}</span>
+                                    </td>
+                                    <td class="align-middle text-right">
+                                        <strong class="text-primary" style="font-size:1.05rem;">${kec.suara_kita.toLocaleString('id-ID')}</strong>
+                                    </td>
+                                    <td class="align-middle">
+                                        <strong class="text-danger">${kec.nama_partai}</strong><br>
+                                        <small class="text-muted">Suara: ${kec.suara_rival.toLocaleString('id-ID')}</small>
+                                    </td>
+                                    <td class="align-middle text-center bg-warning text-dark font-weight-bold" style="font-size:1.1rem; border: 2px solid #ffc107;">
+                                        +${kec.beban_target.toLocaleString('id-ID')} <br><small>Suara</small>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        
+                        let totalBeban = d.operasi_rebut.target_kecamatan.reduce((sum, kec) => sum + kec.beban_target, 0);
+                        if (totalBeban < d.tambahan_suara_dibutuhkan) {
+                            let kekuranganLagi = d.tambahan_suara_dibutuhkan - totalBeban;
+                            targetKecamatanHtml += `
+                                <tr>
+                                    <td colspan="5" class="text-center text-danger bg-light p-3">
+                                        <strong><i class="fas fa-exclamation-triangle"></i> TARGET SANGAT BERAT</strong><br>
+                                        <span class="small text-muted">
+                                            Meskipun kita berhasil menarik <strong>10% pemilih Golput</strong> dan merebut <strong>20% suara lawan</strong> di seluruh wilayah, target kursi tetap belum tercapai. Anda masih kekurangan <strong>${kekuranganLagi.toLocaleString('id-ID')} suara</strong>.
+                                        </span>
+                                    </td>
+                                </tr>
+                            `;
+                        }
+                    } else {
+                        targetKecamatanHtml = `<tr><td colspan="5" class="text-center text-muted p-4">Kursi sudah maksimal atau data tidak tersedia.</td></tr>`;
+                    }
+
+                    // Html Rincian Kecamatan (Opsi 2: Pemulung Suara Hangus)
+                    let targetKecamatanOpsi2Html = '';
+                    if (d.operasi_rebut && d.operasi_rebut.target_kecamatan_opsi2 && d.operasi_rebut.target_kecamatan_opsi2.length > 0) {
+                        d.operasi_rebut.target_kecamatan_opsi2.forEach((kec, idx) => {
+                            targetKecamatanOpsi2Html += `
+                                <tr>
+                                    <td class="align-middle text-center">${idx + 1}</td>
+                                    <td class="align-middle"><strong>${kec.nama_kecamatan}</strong></td>
+                                    <td class="align-middle">
+                                        <strong class="text-danger">${kec.nama_partai_korban}</strong>
+                                    </td>
+                                    <td class="align-middle">
+                                        <strong class="text-secondary" style="font-size:1.05rem;">${kec.suara_hangus_tersedia.toLocaleString('id-ID')} Suara</strong><br>
+                                        <small class="text-muted">${kec.keterangan_sisa}</small>
+                                    </td>
+                                    <td class="align-middle text-center bg-info text-white font-weight-bold" style="font-size:1.1rem; border: 2px solid #17a2b8;">
+                                        +${kec.beban_target.toLocaleString('id-ID')} <br><small>Suara</small>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+
+                        let totalBebanOpsi2 = d.operasi_rebut.target_kecamatan_opsi2.reduce((sum, kec) => sum + kec.beban_target, 0);
+                        if (totalBebanOpsi2 < d.tambahan_suara_dibutuhkan) {
+                            let kekuranganLagiOpsi2 = d.tambahan_suara_dibutuhkan - totalBebanOpsi2;
+                            targetKecamatanOpsi2Html += `
+                                <tr>
+                                    <td colspan="5" class="text-center text-danger bg-light p-3">
+                                        <strong><i class="fas fa-exclamation-triangle"></i> SISA SUARA TIDAK CUKUP</strong><br>
+                                        <span class="small text-muted">
+                                            Meskipun kita memborong <strong>100% semua suara hangus</strong> di dapil ini, Anda masih kekurangan <strong>${kekuranganLagiOpsi2.toLocaleString('id-ID')} suara</strong>.
+                                        </span>
+                                    </td>
+                                </tr>
+                            `;
+                        }
+                    } else {
+                        targetKecamatanOpsi2Html = `<tr><td colspan="5" class="text-center text-muted p-4">Tidak ada data suara hangus partai lain.</td></tr>`;
+                    }
+
+                    // Html Rincian Ancaman Pesaing (Opsi 3)
+                    let ancamanPesaingHtml = '';
+                    if (d.operasi_rebut && d.operasi_rebut.ancaman_pesaing && d.operasi_rebut.ancaman_pesaing.length > 0) {
+                        d.operasi_rebut.ancaman_pesaing.forEach((ancaman, idx) => {
+                            ancamanPesaingHtml += `
+                                <tr>
+                                    <td class="align-middle text-center">${idx + 1}</td>
+                                    <td class="align-middle"><strong>${ancaman.nama_partai}</strong></td>
+                                    <td class="align-middle text-center"><strong style="font-size:1.1rem;">${ancaman.kursi_sekarang}</strong> Kursi</td>
+                                    <td class="align-middle text-center">
+                                        <strong class="text-${ancaman.warna_bahaya}" style="font-size:1.1rem;">+${ancaman.butuh_tambahan.toLocaleString('id-ID')} Suara</strong>
+                                    </td>
+                                    <td class="align-middle text-center">
+                                        <span class="badge bg-${ancaman.warna_bahaya} text-white p-2" style="font-size:0.9rem;">${ancaman.level_bahaya || 'Unknown'}</span>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    } else {
+                        ancamanPesaingHtml = `<tr><td colspan="5" class="text-center text-muted p-4">Tidak ada ancaman.</td></tr>`;
+                    }
+
+                    let detailId = `detail-${index}`;
+
+                    let tombolDetailHtml = '';
+                    if (d.kursi_didapat < d.jumlah_kursi) {
+                        tombolDetailHtml = `<button class="btn btn-sm btn-info font-weight-bold" onclick="toggleDetailRow('${detailId}')" title="Lihat Peta Tempur"><i class="fas fa-crosshairs"></i> Target</button>`;
+                    } else {
+                        tombolDetailHtml = `<span class="badge badge-secondary">Max</span>`;
+                    }
+
+                    rows += `
+                <tr>
+                    <td>${d.nama_dapil}</td>
+                    <td>${d.jumlah_kursi}</td>
+                    <td><strong class="text-primary" style="font-size:1.2rem;">${d.kursi_didapat}</strong>${labelPlus}</td>
+                    <td>
+                        <strong class="font-weight-bold" style="font-size:1.1rem;">${d.suara_total_partai.toLocaleString('id-ID')}</strong> <small class="text-muted">(${persentase}%)</small>
+                    </td>
+                    <td>
+                        <small class="text-muted">Harga 1 Kursi: ${d.harga_satu_kursi.toLocaleString('id-ID')}</small><br>
+                        <strong class="text-danger">Sisa: ${d.suara_mubazir.toLocaleString('id-ID')}</strong> <small class="text-danger">${keteranganSisa}</small>
+                    </td>
+                    <td class="text-center">${labelKekurangan}</td>
+                    <td class="text-center align-middle">
+                        ${tombolDetailHtml}
+                    </td>
+                </tr>
+                <tr id="${detailId}" style="display:none; background-color: #f8f9fa;">
+                    <td colspan="7" class="p-3">
+                        <ul class="nav nav-pills mb-3" id="pills-tab-${index}" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active font-weight-bold" id="tab-btn-opsi1-${index}" href="javascript:void(0);" onclick="switchTab('${index}', 'opsi1')" style="padding: 0.5rem 1rem;">
+                                    <i class="fas fa-users"></i> Opsi 1: Rebut Suara Lawan
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link font-weight-bold" id="tab-btn-opsi2-${index}" href="javascript:void(0);" onclick="switchTab('${index}', 'opsi2')" style="padding: 0.5rem 1rem;">
+                                    <i class="fas fa-chart-pie"></i> Opsi 2: Ambil Sisa Suara
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link font-weight-bold text-danger" id="tab-btn-opsi3-${index}" href="javascript:void(0);" onclick="switchTab('${index}', 'opsi3')" style="padding: 0.5rem 1rem;">
+                                    <i class="fas fa-satellite-dish"></i> Radar Ancaman Pesaing
+                                </a>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content" id="pills-tabContent-${index}">
+                            <!-- TAB OPSI 1 -->
+                            <div id="tab-content-opsi1-${index}" style="display:block;">
+                                <div class="alert alert-warning mb-2 py-1 px-2 small">
+                                    <strong><i class="fas fa-map-marked-alt"></i> Target Defisit: +${d.tambahan_suara_dibutuhkan.toLocaleString('id-ID')} Suara</strong> 
+                                    | Asumsi max: 10% Golput & 20% Suara Lawan direbut.
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered bg-white shadow-sm mb-0" style="min-width: 500px;">
+                                        <thead class="thead-light text-center">
+                                            <tr>
+                                                <th style="width: 5%;">#</th>
+                                                <th style="width: 30%;">Kecamatan Target</th>
+                                                <th style="width: 20%;">Basis Anda</th>
+                                                <th style="width: 25%;">Penguasa (Lawan)</th>
+                                                <th style="width: 20%;" class="bg-warning text-dark">Beban Target</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${targetKecamatanHtml}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <!-- TAB OPSI 2 -->
+                            <div id="tab-content-opsi2-${index}" style="display:none;">
+                                <div class="alert alert-info mb-2 py-1 px-2 small">
+                                    <strong><i class="fas fa-search-dollar"></i> Target Defisit: +${d.tambahan_suara_dibutuhkan.toLocaleString('id-ID')} Suara</strong> 
+                                    | Asumsi max: Memborong 100% suara mubazir partai lain.
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered bg-white shadow-sm mb-0" style="min-width: 500px;">
+                                        <thead class="thead-light text-center">
+                                            <tr>
+                                                <th style="width: 5%;">#</th>
+                                                <th style="width: 25%;">Kecamatan</th>
+                                                <th style="width: 20%;">Partai Korban</th>
+                                                <th style="width: 30%;">Keterangan Sisa Suara</th>
+                                                <th style="width: 20%;" class="bg-info text-white">Beban Target</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${targetKecamatanOpsi2Html}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <!-- TAB OPSI 3 -->
+                            <div id="tab-content-opsi3-${index}" style="display:none;">
+                                <div class="alert alert-danger mb-2 py-1 px-2 small">
+                                    <strong><i class="fas fa-radiation-alt"></i> Pantauan Ancaman Pesaing</strong> 
+                                    | Daftar partai lawan yang paling dekat jaraknya untuk mencuri 1 kursi tambahan di Dapil ini.
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered bg-white shadow-sm mb-0" style="min-width: 500px;">
+                                        <thead class="thead-light text-center">
+                                            <tr>
+                                                <th style="width: 5%;">#</th>
+                                                <th style="width: 30%;">Partai Pesaing</th>
+                                                <th style="width: 15%;">Kursi Saat Ini</th>
+                                                <th style="width: 25%;">Butuh Tambahan Suara</th>
+                                                <th style="width: 25%;">Status Ancaman</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${ancamanPesaingHtml}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                `;
+                });
+                tbody.innerHTML = rows;
+
+                let labelTotalPlus = totalTambahanKursi > 0 ? ` <span class="text-success font-weight-bold">(+${totalTambahanKursi})</span>` : '';
+                let persentaseTotal = totalSuaraDapilSemua > 0 ? ((totalSuaraPartai / totalSuaraDapilSemua) * 100).toFixed(1) : 0;
+                let persentaseTotalKekurangan = totalDPT > 0 ? ((totalKekurangan / totalDPT) * 100).toFixed(1) : 0;
+
+                tfoot.innerHTML = `
+                <tr>
+                    <td class="text-right"><strong>TOTAL:</strong></td>
+                    <td><strong>${totalKursiDapil}</strong></td>
+                    <td><strong class="text-primary" style="font-size:1.2rem;">${totalKursiDidapat}</strong>${labelTotalPlus}</td>
+                    <td>
+                        <strong class="font-weight-bold" style="font-size:1.1rem;">${totalSuaraPartai.toLocaleString('id-ID')}</strong> <small class="text-muted">(${persentaseTotal}%)</small>
+                    </td>
+                    <td>
+                        <strong class="text-danger">Sisa Total: ${totalSuaraMubazir.toLocaleString('id-ID')}</strong>
+                    </td>
+                    <td class="text-center">
+                        <strong class="font-weight-bold" style="font-size:1.1rem;">+${totalKekurangan.toLocaleString('id-ID')}</strong><br>
+                        <small class="text-muted">(${persentaseTotalKekurangan}% DPT)</small>
+                    </td>
+                    <td></td>
+                </tr>
+                `;
+
+                btn.innerHTML = 'Mulai Kalkulasi';
+                btn.disabled = false;
+            })
+            .catch(err => {
+                alert('Error server!');
+                btn.innerHTML = 'Mulai Kalkulasi';
+                btn.disabled = false;
+            });
+    });
+
+    // FUNGSI VANILLA JS UNTUK TOGGLE BARIS DETAIL
+    function toggleDetailRow(rowId) {
+        const row = document.getElementById(rowId);
+        if (row.style.display === 'none') {
+            row.style.display = 'table-row';
+        } else {
+            row.style.display = 'none';
+        }
+    }
+    
+    // FUNGSI VANILLA JS UNTUK SWITCH TAB PETA TEMPUR
+    function switchTab(index, opsi) {
+        document.getElementById(`tab-content-opsi1-${index}`).style.display = 'none';
+        document.getElementById(`tab-content-opsi2-${index}`).style.display = 'none';
+        document.getElementById(`tab-content-opsi3-${index}`).style.display = 'none';
+        
+        document.getElementById(`tab-btn-opsi1-${index}`).classList.remove('active');
+        document.getElementById(`tab-btn-opsi2-${index}`).classList.remove('active');
+        document.getElementById(`tab-btn-opsi3-${index}`).classList.remove('active');
+        
+        document.getElementById(`tab-content-${opsi}-${index}`).style.display = 'block';
+        document.getElementById(`tab-btn-${opsi}-${index}`).classList.add('active');
+    }
+</script>
+{% endblock %}

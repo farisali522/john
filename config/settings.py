@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'pileg_ri',
     'pileg_prov',
     'pileg_kokab',
+    'rebut_kursi',
 ]
 
 MIDDLEWARE = [
@@ -155,5 +156,8 @@ JAZZMIN_SETTINGS = {
         "pileg_kokab.dapil": "fas fa-map",
         "pileg_kokab.rekapsuara": "fas fa-table"
     },
+    "topmenu_links": [
+        {"name": "Rebut Kursi", "url": "rebut_kursi:dashboard", "icon": "fas fa-crosshairs", "new_window": False, "permissions": ["rebut_kursi.can_access_simulasi"]}
+    ],
     "order_with_respect_to": ["auth", "master", "pileg_ri", "pileg_prov", "pileg_kokab"],
 }
